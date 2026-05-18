@@ -1,0 +1,8 @@
+**/target
+**/.git
+.git
+.idea
+**/.idea
+**/*.iml
+**/.DS_Store
+out

@@ -1,0 +1,63 @@
+server:
+  port: 8080
+
+spring:
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        # Customer Service Routes
+        - id: customer-service
+          uri: lb://ms-customer
+          predicates:
+            - Path=/api/customers/**
+          filters:
+            - StripPrefix=0
+        
+        # Table Service Routes
+        - id: table-service
+          uri: lb://ms-table
+          predicates:
+            - Path=/api/tables/**
+          filters:
+            - StripPrefix=0
+        
+        # Reservation Service Routes
+        - id: reservation-service
+          uri: lb://ms-reservation
+          predicates:
+            - Path=/api/reservations/**
+          filters:
+            - StripPrefix=0
+        
+        # Queue Service Routes
+        - id: queue-service
+          uri: lb://ms-queue
+          predicates:
+            - Path=/api/queues/**
+          filters:
+            - StripPrefix=0
+        
+        # Menu Service Routes
+        - id: menu-service
+          uri: lb://ms-menu
+          predicates:
+            - Path=/api/menu/**
+          filters:
+            - StripPrefix=0
+        
+        # Order Service Routes
+        - id: order-service
+          uri: lb://ms-order
+          predicates:
+            - Path=/api/orders/**
+          filters:
+            - StripPrefix=0
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://service-registry:8761/eureka/

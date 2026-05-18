@@ -1,0 +1,236 @@
+
+services:
+  # Databases
+  postgres-customer:
+    image: postgres:15-alpine
+    container_name: postgres-customer
+    environment:
+      POSTGRES_DB: db_customer
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    networks:
+      - restaurant-network
+    volumes:
+      - customer-db:/var/lib/postgresql/data
+
+  postgres-table:
+    image: postgres:15-alpine
+    container_name: postgres-table
+    environment:
+      POSTGRES_DB: db_table
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+    networks:
+      - restaurant-network
+    volumes:
+      - table-db:/var/lib/postgresql/data
+
+  postgres-reservation:
+    image: postgres:15-alpine
+    container_name: postgres-reservation
+    environment:
+      POSTGRES_DB: db_reservation
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5434:5432"
+    networks:
+      - restaurant-network
+    volumes:
+      - reservation-db:/var/lib/postgresql/data
+
+  postgres-queue:
+    image: postgres:15-alpine
+    container_name: postgres-queue
+    environment:
+      POSTGRES_DB: db_queue
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5435:5432"
+    networks:
+      - restaurant-network
+    volumes:
+      - queue-db:/var/lib/postgresql/data
+
+  postgres-menu:
+    image: postgres:15-alpine
+    container_name: postgres-menu
+    environment:
+      POSTGRES_DB: db_menu
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5436:5432"
+    networks:
+      - restaurant-network
+    volumes:
+      - menu-db:/var/lib/postgresql/data
+
+  postgres-order:
+    image: postgres:15-alpine
+    container_name: postgres-order
+    environment:
+      POSTGRES_DB: db_order
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5437:5432"
+    networks:
+      - restaurant-network
+    volumes:
+      - order-db:/var/lib/postgresql/data
+
+  # Infrastructure
+  service-registry:
+    build:
+      context: .
+      dockerfile: service-registry/Dockerfile
+    container_name: service-registry
+    ports:
+      - "8761:8761"
+    networks:
+      - restaurant-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  config-server:
+    build:
+      context: .
+      dockerfile: config-server/Dockerfile
+    container_name: config-server
+    ports:
+      - "8888:8888"
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    networks:
+      - restaurant-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - restaurant-network
+
+  # Microservices
+  ms-customer:
+    build:
+      context: .
+      dockerfile: ms-customer/Dockerfile
+    container_name: ms-customer
+    ports:
+      - "8081:8081"
+    depends_on:
+      config-server:
+        condition: service_healthy
+      postgres-customer:
+        condition: service_started
+    networks:
+      - restaurant-network
+
+  ms-table:
+    build:
+      context: .
+      dockerfile: ms-table/Dockerfile
+    container_name: ms-table
+    ports:
+      - "8082:8082"
+    depends_on:
+      config-server:
+        condition: service_healthy
+      postgres-table:
+        condition: service_started
+    networks:
+      - restaurant-network
+
+  ms-reservation:
+    build:
+      context: .
+      dockerfile: ms-reservation/Dockerfile
+    container_name: ms-reservation
+    ports:
+      - "8083:8083"
+    depends_on:
+      config-server:
+        condition: service_healthy
+      postgres-reservation:
+        condition: service_started
+    networks:
+      - restaurant-network
+
+  ms-queue:
+    build:
+      context: .
+      dockerfile: ms-queue/Dockerfile
+    container_name: ms-queue
+    ports:
+      - "8084:8084"
+    depends_on:
+      config-server:
+        condition: service_healthy
+      postgres-queue:
+        condition: service_started
+    networks:
+      - restaurant-network
+
+  ms-menu:
+    build:
+      context: .
+      dockerfile: ms-menu/Dockerfile
+    container_name: ms-menu
+    ports:
+      - "8085:8085"
+    depends_on:
+      config-server:
+        condition: service_healthy
+      postgres-menu:
+        condition: service_started
+    networks:
+      - restaurant-network
+
+  ms-order:
+    build:
+      context: .
+      dockerfile: ms-order/Dockerfile
+    container_name: ms-order
+    ports:
+      - "8086:8086"
+    depends_on:
+      config-server:
+        condition: service_healthy
+      postgres-order:
+        condition: service_started
+    networks:
+      - restaurant-network
+
+networks:
+  restaurant-network:
+    driver: bridge
+
+volumes:
+  customer-db:
+  table-db:
+  reservation-db:
+  queue-db:
+  menu-db:
+  order-db:
