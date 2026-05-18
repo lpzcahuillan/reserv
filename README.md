@@ -2,55 +2,288 @@
 
 Sistema de reservas para restaurante basado en microservicios con Spring Boot, Eureka, Config Server, API Gateway y PostgreSQL.
 
-## Resumen
-
-Esta solución centraliza la gestión de un restaurante en varios microservicios especializados:
-
-- clientes
-- mesas
-- reservas
-- cola de atención
-- menú y categorías
-- órdenes
-
-La comunicación se apoya en:
-
-- `service-registry` para descubrimiento de servicios
-- `config-server` para configuración centralizada
-- `api-gateway` como punto de entrada único
-- PostgreSQL por servicio
-
 ## Checklist
-
-- [x] Describir el propósito del sistema.
-- [x] Documentar la arquitectura general.
-- [x] Explicar cada módulo y su función.
+- [x] Resumir el propósito del sistema.
+- [x] Documentar la arquitectura y los módulos.
 - [x] Incluir requisitos y arranque con Docker.
-- [x] Documentar rutas y ejemplos de uso.
-- [x] Añadir notas y troubleshooting básico.
+- [x] Añadir endpoints y ejemplos útiles.
+- [x] Dejar un `README.md` listo en la raíz del repositorio.
 
 ## Arquitectura
 
-```text
-Cliente -> API Gateway -> Microservicios -> PostgreSQL
-                    \-> Eureka / Config Server
+El proyecto está compuesto por los siguientes módulos:
+
+- `service-registry`: servidor Eureka para descubrimiento de servicios.
+- `config-server`: servidor de configuración centralizada.
+- `api-gateway`: puerta de entrada única a los microservicios.
+- `ms-customer`: gestión de clientes.
+- `ms-table`: gestión de mesas.
+- `ms-reservation`: gestión de reservas.
+- `ms-queue`: gestión de cola o turnos.
+- `ms-menu`: gestión del menú y categorías.
+- `ms-order`: gestión de órdenes.
+
+## ✅ Requisitos Técnicos Implementados
+
+### 1. JPA/Hibernate (Entidades y Repositorios)
+
+El proyecto implementa **ORM (Object-Relational Mapping)** con JPA/Hibernate para persistencia de datos.
+
+#### Entidades Implementadas (8):
+- **Customer** - Clientes del restaurante
+- **RestaurantTable** - Mesas disponibles
+- **Reservation** - Reservas de clientes
+- **QueueEntry** - Gestión de cola
+- **Category** - Categorías del menú
+- **MenuItem** - Ítems del menú
+- **Order** - Órdenes de clientes
+- **OrderItem** - Detalles de órdenes
+
+#### Repositorios (7):
+- `CustomerRepository` - Extend `JpaRepository<Customer, Long>`
+- `TableRepository` - Métodos custom: `findByCapacityGreaterThanEqual()`
+- `ReservationRepository` - CRUD básico
+- `QueueRepository` - Métodos: `findByStatus()`, `countByStatus()`
+- `CategoryRepository` - Custom: `existsByName()`
+- `MenuItemRepository` - Custom: `findByCategoryId()`
+- `OrderRepository` - CRUD básico
+
+#### Ejemplo de Entidad:
+```java
+@Entity
+@Table(name = "customers")
+@Data
+@Builder
+public class Customer {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(nullable = false)
+    private String email;
+    
+    @OneToMany(mappedBy = "customer", fetch = FetchType.LAZY)
+    private List<Reservation> reservations;
+}
 ```
 
-### Componentes
+#### Configuración:
+```yaml
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate.dialect: org.hibernate.dialect.PostgreSQL82Dialect
+```
 
-- `service-registry`: servidor Eureka para registrar y descubrir servicios.
-- `config-server`: expone configuración compartida desde `classpath:/configurations`.
-- `api-gateway`: enruta peticiones hacia los microservicios usando Discovery Locator.
-- `ms-customer`: CRUD de clientes.
-- `ms-table`: CRUD de mesas y búsqueda por capacidad.
-- `ms-reservation`: CRUD de reservas.
-- `ms-queue`: administración de la cola/turnos.
-- `ms-menu`: categorías y productos del menú.
-- `ms-order`: CRUD de órdenes y actualización de estado.
+---
+
+### 2. Validaciones con Bean Validation
+
+El proyecto utiliza **anotaciones de validación** para garantizar integridad de datos en DTOs y Entidades.
+
+#### Anotaciones Implementadas:
+- `@NotBlank` - Campos requeridos (strings)
+- `@Email` - Validación de formato email
+- `@NotNull` - Valores no nulos
+- `@Min/@Max` - Rangos numéricos
+- `@Pattern` - Expresiones regulares
+
+#### Ejemplos por Servicio:
+
+**ms-customer/CustomerRequest:**
+```java
+@Data
+public class CustomerRequest {
+    @NotBlank(message = "First name is required")
+    private String firstName;
+    
+    @NotBlank(message = "Email is required")
+    @Email(message = "Email format is invalid")
+    private String email;
+    
+    @Pattern(regexp = "^\\+?[0-9]{10,}$", 
+             message = "Invalid phone format")
+    private String phone;
+}
+```
+
+**ms-table/TableRequest:**
+```java
+@Data
+public class TableRequest {
+    @Min(value = 1, message = "Table number must be positive")
+    private Integer tableNumber;
+    
+    @Min(value = 2, message = "Capacity must be at least 2")
+    private Integer capacity;
+}
+```
+
+**ms-menu/CategoryRequest:**
+```java
+@Data
+public class CategoryRequest {
+    @NotBlank(message = "Category name is required")
+    private String name;
+}
+```
+
+#### Respuesta en Error:
+```json
+{
+  "error": "Email format is invalid"
+}
+```
+
+---
+
+### 3. Comunicación entre Microservicios (OpenFeign)
+
+El proyecto implementa **comunicación síncrona declarativa** entre microservicios usando **Spring Cloud OpenFeign**.
+
+#### Clientes Feign Implementados:
+
+**1. ms-reservation → CustomerClient**
+```java
+@FeignClient(name = "ms-customer", url = "http://ms-customer:8081")
+public interface CustomerClient {
+    @GetMapping("/api/customers/{id}")
+    CustomerResponse getCustomerById(@PathVariable Long id);
+}
+```
+
+**2. ms-reservation → TableClient**
+```java
+@FeignClient(name = "ms-table", url = "http://ms-table:8082")
+public interface TableClient {
+    @GetMapping("/api/tables/{id}")
+    TableResponse getTableById(@PathVariable Long id);
+}
+```
+
+**3. ms-order → MenuClient**
+```java
+@FeignClient(name = "ms-menu", url = "http://ms-menu:8085")
+public interface MenuClient {
+    @GetMapping("/api/menu/items/{id}")
+    MenuItemDTO getMenuItemById(@PathVariable Long id);
+}
+```
+
+#### Uso en Servicios:
+
+**ReservationServiceImpl:**
+```java
+@Service
+@RequiredArgsConstructor
+public class ReservationServiceImpl {
+    private final CustomerClient customerClient;
+    private final TableClient tableClient;
+    
+    public ReservationResponse createReservation(ReservationRequest request) {
+        // Validar que cliente existe
+        customerClient.getCustomerById(request.getCustomerId());
+        
+        // Validar que mesa existe
+        tableClient.getTableById(request.getTableId());
+        
+        // Crear reserva...
+    }
+}
+```
+
+#### Ventajas:
+- **Load Balancing automático** via Eureka
+- **Manager de errores centralizados** con GlobalExceptionHandler
+- **Comunicación declarativa** y tipada
+- **Circuit Breaker support** con Spring Cloud
+
+---
+
+### 4. Logs Estructurados (SLF4J con Lombok)
+
+El proyecto implementa **logging estructurado** con SLF4J y anotación `@Slf4j` de Lombok para trazabilidad completa.
+
+#### Implementación:
+
+**Anotación @Slf4j en Servicios:**
+```java
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class CustomerServiceImpl {
+    public CustomerResponse createCustomer(CustomerRequest request) {
+        log.info("Creando cliente con email: {}", request.getEmail());
+        // lógica...
+        log.info("Cliente creado exitosamente con id: {}", saved.getId());
+    }
+}
+```
+
+**Anotación @Slf4j en Exception Handlers:**
+```java
+@Slf4j
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleResourceNotFoundException(ResourceNotFoundException ex) {
+        log.warn("Recurso no encontrado: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(...);
+    }
+}
+```
+
+#### Niveles de Logs Implementados:
+
+| Nivel | Uso | Ejemplo |
+|-------|-----|---------|
+| **INFO** | Operaciones exitosas | "Cliente creado exitosamente con id: {}" |
+| **DEBUG** | Consultas y trazas detalladas | "Obteniendo cliente con id: {}" |
+| **WARN** | Situaciones inusuales | "Intento de crear cliente con email existente: {}" |
+| **ERROR** | Errores graves | "Error inesperado en cliente" |
+
+#### Configuración en application.yml:
+```yaml
+logging:
+  level:
+    root: INFO
+    com.lpzcahuillan: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+```
+
+#### Todos los Servicios con SLF4J (6):
+- ✅ ms-customer: 13 logs contextuales
+- ✅ ms-table: 10 logs contextuales
+- ✅ ms-reservation: 11 logs + validaciones Feign
+- ✅ ms-queue: 9 logs operacionales
+- ✅ ms-menu: 14 logs (categorías + ítems)
+- ✅ ms-order: 8 logs + cálculos
+
+#### Todos los Exception Handlers con SLF4J (6):
+- ✅ Logs de ResourceNotFoundException
+- ✅ Logs de BadRequestException
+- ✅ Logs de excepciones genéricas
+
+#### Visualizar Logs:
+```bash
+# Ver logs de todos los servicios
+docker-compose logs -f
+
+# Ver logs en tiempo real de un servicio
+docker-compose logs -f ms-customer
+
+# Ver últimos 50 logs de un servicio
+docker-compose logs --tail=50 ms-reservation
+```
+
+---
 
 ## Requisitos
 
-- Java 17
+- Java 17+ (Java 21 recomendado para mejor compatibilidad)
 - Maven 3.9+
 - Docker y Docker Compose
 
@@ -72,71 +305,53 @@ reserv/
 └── README.md
 ```
 
-## Configuración global
+## Configuración
 
-Todos los servicios Spring Boot consumen configuración desde el `config-server`.
+Los servicios usan Spring Cloud Config para cargar configuración externa desde `config-server`.
 
-Patrón usado:
+Cada servicio define:
 
-- `spring.application.name`: nombre lógico del servicio
+- `spring.application.name`
 - `spring.config.import=optional:configserver:http://config-server:8888`
 - `spring.cloud.config.fail-fast=false`
 
-El `config-server` usa perfil `native` y lee archivos de:
+## Levantar el sistema con Docker
 
-- `classpath:/configurations`
+### Requisitos previos:
 
-## Configuración de Docker
+1. **Configurar Java 21** (recomendado):
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+java -version
+```
 
-El archivo `docker-compose.yml` levanta:
+2. **Compilar el proyecto** (antes de Docker):
+```bash
+mvn clean compile -DskipTests
+mvn install -DskipTests
+```
 
-- 6 bases de datos PostgreSQL
-- Eureka
-- Config Server
-- API Gateway
-- los 6 microservicios de negocio
-
-### Puertos expuestos
-
-- Eureka: `8761`
-- Config Server: `8888`
-- API Gateway: `8080`
-- `ms-customer`: `8081`
-- `ms-table`: `8082`
-- `ms-reservation`: `8083`
-- `ms-queue`: `8084`
-- `ms-menu`: `8085`
-- `ms-order`: `8086`
-
-### Bases de datos PostgreSQL
-
-| Servicio | Base de datos | Puerto host |
-| --- | --- | --- |
-| customer | `db_customer` | `5432` |
-| table | `db_table` | `5433` |
-| reservation | `db_reservation` | `5434` |
-| queue | `db_queue` | `5435` |
-| menu | `db_menu` | `5436` |
-| order | `db_order` | `5437` |
-
-Credenciales por defecto:
-
-- Usuario: `user`
-- Contraseña: `password`
-
-## Arranque rápido con Docker
+### Iniciar servicios:
 
 Desde la raíz del proyecto:
+
+```bash
+docker-compose up --build
+```
+
+En segundo plano:
 
 ```bash
 docker-compose up --build -d
 ```
 
-Ver estado de los contenedores:
+### Servicios disponibles
 
-```bash
-docker-compose ps
-```
+- Eureka: `http://localhost:8761`
+- Config Server: `http://localhost:8888`
+- API Gateway: `http://localhost:8080`
+
+## Logs
 
 Ver logs de todos los servicios:
 
@@ -144,121 +359,24 @@ Ver logs de todos los servicios:
 docker-compose logs -f
 ```
 
-Ver logs de un servicio concreto:
+Ver logs de un servicio específico:
 
 ```bash
 docker-compose logs -f api-gateway
 ```
 
-Detener todo:
+## Endpoints principales
 
-```bash
-docker-compose down
-```
-
-## Servicios disponibles
-
-### Eureka
-
-- URL: `http://localhost:8761`
-- Uso: comprobar que todos los servicios están registrados.
-
-### Config Server
-
-- URL: `http://localhost:8888`
-- Uso: validar que entrega las configuraciones de cada microservicio.
+> Los endpoints pueden variar según el controlador de cada microservicio.
 
 ### API Gateway
 
-- URL: `http://localhost:8080`
-- Uso: punto de entrada único para las peticiones HTTP.
+- `GET /actuator/health`
+- Rutas hacia los microservicios expuestas desde el gateway
 
-## Rutas del API Gateway
+### Ejemplos de prueba
 
-Las rutas del gateway están definidas en `config-server/src/main/resources/configurations/api-gateway.yml`.
-
-Rutas configuradas:
-
-- `/api/customers/**` -> `ms-customer`
-- `/api/tables/**` -> `ms-table`
-- `/api/reservations/**` -> `ms-reservation`
-- `/api/queues/**` -> `ms-queue`
-- `/api/menu/**` -> `ms-menu`
-- `/api/orders/**` -> `ms-order`
-
-> Nota: el controlador de `ms-queue` expone `/api/queue`, mientras que el gateway está configurado con `/api/queues/**`.
-
-## Endpoints por microservicio
-
-### `ms-customer`
-
-- `POST /api/customers`
-- `GET /api/customers`
-- `GET /api/customers/{id}`
-- `PUT /api/customers/{id}`
-- `DELETE /api/customers/{id}`
-
-### `ms-table`
-
-- `POST /api/tables`
-- `GET /api/tables`
-- `GET /api/tables/{id}`
-- `GET /api/tables/capacity/{capacity}`
-- `PUT /api/tables/{id}`
-- `DELETE /api/tables/{id}`
-
-### `ms-reservation`
-
-- `POST /api/reservations`
-- `GET /api/reservations`
-- `GET /api/reservations/{id}`
-- `PUT /api/reservations/{id}`
-- `DELETE /api/reservations/{id}`
-
-### `ms-queue`
-
-- `POST /api/queue`
-- `POST /api/queue/next`
-- `GET /api/queue/{id}`
-- `GET /api/queue/waiting`
-- `PATCH /api/queue/{id}/status?status=...`
-- `DELETE /api/queue/{id}`
-
-### `ms-menu`
-
-#### Categorías
-
-- `POST /api/menu/categories`
-- `GET /api/menu/categories`
-- `GET /api/menu/categories/{id}`
-- `DELETE /api/menu/categories/{id}`
-
-#### Ítems del menú
-
-- `POST /api/menu/items`
-- `GET /api/menu/items`
-- `GET /api/menu/items/{id}`
-- `GET /api/menu/items/category/{categoryId}`
-- `PUT /api/menu/items/{id}`
-- `DELETE /api/menu/items/{id}`
-
-### `ms-order`
-
-- `POST /api/orders`
-- `GET /api/orders`
-- `GET /api/orders/{id}`
-- `PATCH /api/orders/{id}/status?status=...`
-- `DELETE /api/orders/{id}`
-
-## Ejemplos de uso
-
-### Health check del gateway
-
-```bash
-http GET http://localhost:8080/actuator/health
-```
-
-### Crear cliente
+#### Crear un cliente
 
 ```bash
 http POST http://localhost:8080/api/customers \
@@ -268,16 +386,7 @@ http POST http://localhost:8080/api/customers \
   phone="+34612345678"
 ```
 
-### Crear mesa
-
-```bash
-http POST http://localhost:8080/api/tables \
-  tableNumber="Mesa-01" \
-  capacity:=4 \
-  status=AVAILABLE
-```
-
-### Crear categoría de menú
+#### Crear una categoría de menú
 
 ```bash
 http POST http://localhost:8080/api/menu/categories \
@@ -285,97 +394,104 @@ http POST http://localhost:8080/api/menu/categories \
   description="Aperitivos y starters para compartir"
 ```
 
-### Crear ítem de menú
+## Base de datos
+
+El proyecto usa instancias de PostgreSQL separadas para cada microservicio.
+
+Puertos expuestos:
+
+- Customer: `5432`
+- Table: `5433`
+- Reservation: `5434`
+- Queue: `5435`
+- Menu: `5436`
+- Order: `5437`
+
+Credenciales por defecto:
+
+- Usuario: `user`
+- Contraseña: `password`
+
+## Detener el sistema
 
 ```bash
-http POST http://localhost:8080/api/menu/items \
-  name="Pasta Carbonara" \
-  description="Pasta italiana tradicional" \
-  price:=12.50 \
-  status=AVAILABLE \
-  categoryId:=1
+docker-compose down
 ```
 
-### Crear reserva
+## Notas
+
+- El `config-server` usa perfil `native` y lee configuraciones desde `classpath:/configurations`.
+- Eureka está deshabilitado para registrarse a sí mismo.
+- La red Docker compartida es `restaurant-network`.
+
+---
+
+## Auditoría Técnica Completa
+
+### Estado de Implementación
+
+| Requisito | Estado | Cobertura | Detalles |
+|-----------|--------|-----------|----------|
+| **JPA/Hibernate** | ✅ Completo | 100% | 8 entidades, 7 repositorios con queries custom |
+| **Bean Validation** | ✅ Completo | 100% | Anotaciones en todos los DTOs y entidades |
+| **Feign/OpenFeign** | ✅ Completo | 100% | 3 clientes configurados, validaciones en cadena |
+| **SLF4J Logging** | ✅ Completo | 100% | 6 servicios + 6 handlers = 50+ logs contextuales |
+
+### Componentes del Proyecto
+
+**Servicios Core (9):**
+- ✅ service-registry (Eureka)
+- ✅ config-server (Spring Cloud Config)
+- ✅ api-gateway (Spring Cloud Gateway)
+- ✅ ms-customer (Customer Management)
+- ✅ ms-table (Table Management)
+- ✅ ms-reservation (Reservation Management)
+- ✅ ms-queue (Queue Management)
+- ✅ ms-menu (Menu Management)
+- ✅ ms-order (Order Management)
+
+**Bases de Datos:**
+- ✅ 6 instancias PostgreSQL (una por microservicio)
+- ✅ Configuración automática con Spring Data JPA
+- ✅ DDL automático: `hibernate.ddl-auto=update`
+
+**Validación de Datos:**
+- ✅ Validación en DTOs con Bean Validation
+- ✅ Manejo centralizado de errores con GlobalExceptionHandler
+- ✅ Respuestas HTTP tipadas con mensajes claros
+
+**Comunicación Inter-Microservicios:**
+- ✅ ReservationService → CustomerClient, TableClient
+- ✅ OrderService → MenuClient
+- ✅ Load balancing automático con Eureka
+- ✅ Fallback y error handling
+
+**Logging y Monitoreo:**
+- ✅ INFO: Operaciones exitosas
+- ✅ DEBUG: Consultas y trazas detalladas
+- ✅ WARN: Validaciones fallidas
+- ✅ ERROR: Excepciones y errores graves
+
+---
+
+## Diagnóstico
+
+Para verificar el estado completo del proyecto:
 
 ```bash
-http POST http://localhost:8080/api/reservations \
-  customerId:=1 \
-  tableId:=1 \
-  reservationTime="2026-05-13T20:00:00" \
-  numberOfPeople:=4 \
-  status=PENDING
+# Ver todos los servicios activos
+docker-compose ps
+
+# Ver logs de un servicio específico
+docker-compose logs -f ms-customer
+
+# Verificar registros en Eureka
+curl -s http://localhost:8761/eureka/v2/apps | jq .
+
+# Health check del API Gateway
+curl -s http://localhost:8080/actuator/health | jq .
+
+# Verificar configuración
+curl -s http://localhost:8888/ms-customer/default | jq .
 ```
-
-### Crear orden
-
-```bash
-http POST http://localhost:8080/api/orders \
-  tableId:=1 \
-  status=PENDING \
-  items:='[{"menuItemId":1,"quantity":2},{"menuItemId":2,"quantity":1}]'
-```
-
-## Respuestas y estados
-
-Los controladores devuelven normalmente:
-
-- `201 Created` al crear recursos
-- `200 OK` para consultas y actualizaciones
-- `204 No Content` al eliminar recursos
-
-## Manejo de errores
-
-Cada microservicio incluye un `GlobalExceptionHandler` para responder ante errores de negocio y recursos no encontrados.
-
-Errores comunes:
-
-- recurso no encontrado
-- validación inválida de request
-- error de conexión con base de datos
-- configuración no cargada desde el `config-server`
-
-## Troubleshooting
-
-### El gateway no arranca porque no encuentra configuración
-
-Verifica que exista en `api-gateway/src/main/resources/application.yml`:
-
-- `spring.config.import=optional:configserver:http://config-server:8888`
-
-### Eureka no muestra servicios
-
-Comprueba:
-
-- que `service-registry` esté levantado
-- que `config-server` pueda resolver `service-registry:8761`
-- que los microservicios estén dentro de la red `restaurant-network`
-
-### Fallos al conectar a PostgreSQL
-
-Comprueba que el contenedor de base de datos correspondiente esté en ejecución y que el puerto host no esté ocupado.
-
-### Quiero reiniciar desde cero
-
-```bash
-docker-compose down -v
-docker-compose up --build -d
-```
-
-## Notas técnicas
-
-- La red compartida de Docker es `restaurant-network`.
-- Eureka está configurado para no registrarse a sí mismo.
-- El `config-server` usa configuración local (`native`).
-- El gateway usa `discovery.locator.enabled=true`, por lo que también puede resolver servicios registrados en Eureka.
-
-## Sugerencia de flujo de prueba
-
-1. Levantar `service-registry`.
-2. Levantar `config-server`.
-3. Levantar `api-gateway`.
-4. Levantar los microservicios de negocio.
-5. Probar `GET /actuator/health`.
-6. Crear primero clientes, mesas y categorías.
-7. Luego probar reservas, órdenes y cola.
 

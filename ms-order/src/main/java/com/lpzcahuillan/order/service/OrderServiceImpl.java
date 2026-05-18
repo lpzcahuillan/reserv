@@ -9,6 +9,7 @@ import com.lpzcahuillan.order.entity.OrderItem;
 import com.lpzcahuillan.order.exception.ResourceNotFoundException;
 import com.lpzcahuillan.order.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
@@ -26,6 +28,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public OrderResponse createOrder(OrderRequest request) {
+        log.info("Creando orden para mesa: {}, cantidad de items: {}", request.getTableId(), request.getItems().size());
         Order order = Order.builder()
                 .tableId(request.getTableId())
                 .orderTime(LocalDateTime.now())
@@ -36,6 +39,7 @@ public class OrderServiceImpl implements OrderService {
 
         BigDecimal total = BigDecimal.ZERO;
         for (OrderRequest.OrderItemRequest itemReq : request.getItems()) {
+            log.debug("Procesando item de orden: menuItemId={}, cantidad={}", itemReq.getMenuItemId(), itemReq.getQuantity());
             MenuItemDTO menuItem = menuClient.getMenuItemById(itemReq.getMenuItemId());
             
             BigDecimal subtotal = menuItem.getPrice().multiply(BigDecimal.valueOf(itemReq.getQuantity()));
@@ -52,37 +56,55 @@ public class OrderServiceImpl implements OrderService {
         }
         order.setTotalAmount(total);
 
-        return mapToResponse(repository.save(order));
+        Order saved = repository.save(order);
+        log.info("Orden creada exitosamente con id: {}, mesa: {}, total: {}", saved.getId(), saved.getTableId(), saved.getTotalAmount());
+        return mapToResponse(saved);
     }
 
     @Override
     public OrderResponse getOrderById(Long id) {
+        log.debug("Obteniendo orden con id: {}", id);
         return repository.findById(id)
                 .map(this::mapToResponse)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+                .orElseThrow(() -> {
+                    log.warn("Orden no encontrada con id: {}", id);
+                    return new ResourceNotFoundException("Order not found");
+                });
     }
 
     @Override
     public List<OrderResponse> getAllOrders() {
-        return repository.findAll().stream()
+        log.debug("Obteniendo todas las órdenes");
+        List<OrderResponse> orders = repository.findAll().stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+        log.info("Se obtuvieron {} órdenes", orders.size());
+        return orders;
     }
 
     @Override
     public OrderResponse updateOrderStatus(Long id, String status) {
+        log.info("Actualizando estado de orden {} a: {}", id, status);
         Order order = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+                .orElseThrow(() -> {
+                    log.warn("Orden no encontrada con id: {} durante actualizar estado", id);
+                    return new ResourceNotFoundException("Order not found");
+                });
         order.setStatus(Order.OrderStatus.valueOf(status.toUpperCase()));
-        return mapToResponse(repository.save(order));
+        Order updated = repository.save(order);
+        log.info("Estado de orden {} actualizado exitosamente a: {}", id, updated.getStatus());
+        return mapToResponse(updated);
     }
 
     @Override
     public void deleteOrder(Long id) {
+        log.info("Eliminando orden con id: {}", id);
         if (!repository.existsById(id)) {
+            log.warn("Orden no encontrada con id: {} durante la eliminación", id);
             throw new ResourceNotFoundException("Order not found");
         }
         repository.deleteById(id);
+        log.info("Orden con id: {} eliminada exitosamente", id);
     }
 
     private OrderResponse mapToResponse(Order order) {

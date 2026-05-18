@@ -22,9 +22,9 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerResponse createCustomer(CustomerRequest request) {
-        log.info("Creating customer with email: {}", request.getEmail());
+        log.info("Creando cliente con email: {}", request.getEmail());
         if (repository.existsByEmail(request.getEmail())) {
-            log.warn("Attempt to create customer with existing email: {}", request.getEmail());
+            log.warn("Intento de crear cliente con email existente: {}", request.getEmail());
             throw new BadRequestException("Email already exists");
         }
         Customer customer = Customer.builder()
@@ -34,42 +34,42 @@ public class CustomerServiceImpl implements CustomerService {
                 .phone(request.getPhone())
                 .build();
         Customer saved = repository.save(customer);
-        log.info("Customer created successfully with id: {} and email: {}", saved.getId(), saved.getEmail());
+        log.info("Cliente creado exitosamente con id: {} y email: {}", saved.getId(), saved.getEmail());
         return mapToResponse(saved);
     }
 
     @Override
     public CustomerResponse getCustomerById(Long id) {
-        log.debug("Fetching customer with id: {}", id);
+        log.debug("Obteniendo cliente con id: {}", id);
         return repository.findById(id)
                 .map(this::mapToResponse)
                 .orElseThrow(() -> {
-                    log.warn("Customer not found with id: {}", id);
+                    log.warn("Cliente no encontrado con id: {}", id);
                     return new ResourceNotFoundException("Customer not found");
                 });
     }
 
     @Override
     public List<CustomerResponse> getAllCustomers() {
-        log.debug("Fetching all customers");
+        log.debug("Obteniendo todos los clientes");
         List<CustomerResponse> customers = repository.findAll().stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
-        log.info("Retrieved {} customers", customers.size());
+        log.info("Se obtuvieron {} clientes", customers.size());
         return customers;
     }
 
     @Override
     public CustomerResponse updateCustomer(Long id, CustomerRequest request) {
-        log.info("Updating customer with id: {}", id);
+        log.info("Actualizando cliente con id: {}", id);
         Customer customer = repository.findById(id)
                 .orElseThrow(() -> {
-                    log.warn("Customer not found with id: {} during update", id);
+                    log.warn("Cliente no encontrado con id: {} durante la actualización", id);
                     return new ResourceNotFoundException("Customer not found");
                 });
 
         if (!customer.getEmail().equals(request.getEmail()) && repository.existsByEmail(request.getEmail())) {
-            log.warn("Attempt to update customer {} with existing email: {}", id, request.getEmail());
+            log.warn("Intento de actualizar cliente {} con email existente: {}", id, request.getEmail());
             throw new BadRequestException("Email already exists");
         }
 
@@ -79,19 +79,19 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setPhone(request.getPhone());
 
         Customer updated = repository.save(customer);
-        log.info("Customer with id: {} updated successfully", id);
+        log.info("Cliente con id: {} actualizado exitosamente", id);
         return mapToResponse(updated);
     }
 
     @Override
     public void deleteCustomer(Long id) {
-        log.info("Deleting customer with id: {}", id);
+        log.info("Eliminando cliente con id: {}", id);
         if (!repository.existsById(id)) {
-            log.warn("Customer not found with id: {} during delete", id);
+            log.warn("Cliente no encontrado con id: {} durante la eliminación", id);
             throw new ResourceNotFoundException("Customer not found");
         }
         repository.deleteById(id);
-        log.info("Customer with id: {} deleted successfully", id);
+        log.info("Cliente con id: {} eliminado exitosamente", id);
     }
 
     private CustomerResponse mapToResponse(Customer customer) {

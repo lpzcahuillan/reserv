@@ -6,12 +6,14 @@ import com.lpzcahuillan.queue.entity.QueueEntry;
 import com.lpzcahuillan.queue.exception.ResourceNotFoundException;
 import com.lpzcahuillan.queue.repository.QueueRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class QueueServiceImpl implements QueueService {
@@ -20,6 +22,7 @@ public class QueueServiceImpl implements QueueService {
 
     @Override
     public QueueResponse addToQueue(QueueRequest request) {
+        log.info("Agregando cliente a la cola: nombre={}, tamaño de grupo={}", request.getCustomerName(), request.getPartySize());
         long currentWaiting = repository.countByStatus(QueueEntry.QueueStatus.WAITING);
         QueueEntry entry = QueueEntry.builder()
                 .customerName(request.getCustomerName())
@@ -28,52 +31,74 @@ public class QueueServiceImpl implements QueueService {
                 .status(QueueEntry.QueueStatus.WAITING)
                 .queuePosition((int) currentWaiting + 1)
                 .build();
-        return mapToResponse(repository.save(entry));
+        QueueEntry saved = repository.save(entry);
+        log.info("Cliente agregado a la cola con posición: {}, id: {}", saved.getQueuePosition(), saved.getId());
+        return mapToResponse(saved);
     }
 
     @Override
     public QueueResponse getNextInQueue() {
+        log.debug("Obteniendo siguiente cliente en la cola");
         QueueEntry entry = repository.findFirstByStatusOrderByQueuePositionAsc(QueueEntry.QueueStatus.WAITING)
-                .orElseThrow(() -> new ResourceNotFoundException("No one is waiting in queue"));
+                .orElseThrow(() -> {
+                    log.warn("No hay clientes esperando en la cola");
+                    return new ResourceNotFoundException("No one is waiting in queue");
+                });
         entry.setStatus(QueueEntry.QueueStatus.CALLED);
         repository.save(entry);
         updateQueuePositions();
+        log.info("Cliente llamado de la cola: id={}, nombre={}", entry.getId(), entry.getCustomerName());
         return mapToResponse(entry);
     }
 
     @Override
     public QueueResponse getById(Long id) {
+        log.debug("Obteniendo entrada de cola con id: {}", id);
         return repository.findById(id)
                 .map(this::mapToResponse)
-                .orElseThrow(() -> new ResourceNotFoundException("Queue entry not found"));
+                .orElseThrow(() -> {
+                    log.warn("Entrada de cola no encontrada con id: {}", id);
+                    return new ResourceNotFoundException("Queue entry not found");
+                });
     }
 
     @Override
     public List<QueueResponse> getWaitingQueue() {
-        return repository.findByStatusOrderByQueuePositionAsc(QueueEntry.QueueStatus.WAITING).stream()
+        log.debug("Obteniendo todos los clientes esperando en la cola");
+        List<QueueResponse> waitingList = repository.findByStatusOrderByQueuePositionAsc(QueueEntry.QueueStatus.WAITING).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+        log.info("Se obtuvieron {} clientes esperando en la cola", waitingList.size());
+        return waitingList;
     }
 
     @Override
     public QueueResponse updateStatus(Long id, String status) {
+        log.info("Actualizando estado de entrada de cola {} a: {}", id, status);
         QueueEntry entry = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Queue entry not found"));
+                .orElseThrow(() -> {
+                    log.warn("Entrada de cola no encontrada con id: {} durante la actualización", id);
+                    return new ResourceNotFoundException("Queue entry not found");
+                });
         entry.setStatus(QueueEntry.QueueStatus.valueOf(status.toUpperCase()));
         repository.save(entry);
         if (!entry.getStatus().equals(QueueEntry.QueueStatus.WAITING)) {
             updateQueuePositions();
         }
+        log.info("Estado de entrada de cola {} actualizado exitosamente", id);
         return mapToResponse(entry);
     }
 
     @Override
     public void removeFromQueue(Long id) {
+        log.info("Eliminando entrada de cola con id: {}", id);
         if (!repository.existsById(id)) {
+            log.warn("Entrada de cola no encontrada con id: {} durante la eliminación", id);
             throw new ResourceNotFoundException("Queue entry not found");
         }
         repository.deleteById(id);
         updateQueuePositions();
+        log.info("Entrada de cola {} eliminada exitosamente y posiciones actualizadas", id);
     }
 
     private void updateQueuePositions() {
