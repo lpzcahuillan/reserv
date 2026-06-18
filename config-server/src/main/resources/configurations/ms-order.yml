@@ -16,11 +16,24 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: guest
+    password: guest
 
 eureka:
   client:
     service-url:
       defaultZone: http://service-registry:8761/eureka/
+
+springdoc:
+  api-docs:
+    path: /api/orders/v3/api-docs
 
 feign:
   client:

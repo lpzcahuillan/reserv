@@ -9,6 +9,14 @@ spring:
           enabled: true
           lower-case-service-id: true
       routes:
+        # Auth Service Routes
+        - id: auth-service
+          uri: lb://ms-auth
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=0
+
         # Customer Service Routes
         - id: customer-service
           uri: lb://ms-customer
@@ -61,3 +69,24 @@ eureka:
   client:
     service-url:
       defaultZone: http://service-registry:8761/eureka/
+
+jwt:
+  secret: 3c9e45c4a719468532f18378d3840e6c6d042cf768d6d67b2d56193e433f48a1
+
+springdoc:
+  swagger-ui:
+    urls:
+      - name: Customer Service
+        url: /api/customers/v3/api-docs
+      - name: Table Service
+        url: /api/tables/v3/api-docs
+      - name: Reservation Service
+        url: /api/reservations/v3/api-docs
+      - name: Queue Service
+        url: /api/queues/v3/api-docs
+      - name: Menu Service
+        url: /api/menu/v3/api-docs
+      - name: Order Service
+        url: /api/orders/v3/api-docs
+      - name: Auth Service
+        url: /api/auth/v3/api-docs

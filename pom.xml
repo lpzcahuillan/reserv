@@ -26,6 +26,8 @@
     <module>ms-queue</module>
     <module>ms-menu</module>
     <module>ms-order</module>
+    <module>ms-auth</module>
+    <module>ms-notification</module>
   </modules>
 
   <properties>
@@ -33,6 +35,7 @@
     <spring-cloud.version>2023.0.0</spring-cloud.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <lombok.version>1.18.30</lombok.version>
+    <springdoc.version>2.3.0</springdoc.version>
   </properties>
 
   <dependencyManagement>

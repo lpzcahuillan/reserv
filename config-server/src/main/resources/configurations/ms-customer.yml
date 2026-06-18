@@ -42,3 +42,7 @@ eureka:
   client:
     service-url:
       defaultZone: http://service-registry:8761/eureka/
+
+springdoc:
+  api-docs:
+    path: /api/customers/v3/api-docs

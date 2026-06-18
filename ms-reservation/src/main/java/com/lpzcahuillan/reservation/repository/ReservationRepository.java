@@ -7,4 +7,6 @@ import java.util.List;
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
     List<Reservation> findByCustomerId(Long customerId);
     List<Reservation> findByTableId(Long tableId);
+    boolean existsByTableIdAndReservationTimeAndStatusNot(Long tableId, java.time.LocalDateTime reservationTime, Reservation.ReservationStatus status);
+    boolean existsByTableIdAndReservationTimeAndStatusNotAndIdNot(Long tableId, java.time.LocalDateTime reservationTime, Reservation.ReservationStatus status, Long id);
 }

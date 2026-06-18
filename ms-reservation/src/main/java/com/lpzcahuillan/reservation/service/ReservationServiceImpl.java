@@ -10,9 +10,12 @@ import com.lpzcahuillan.reservation.exception.ResourceNotFoundException;
 import com.lpzcahuillan.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -23,11 +26,22 @@ public class ReservationServiceImpl implements ReservationService {
     private final ReservationRepository repository;
     private final CustomerClient customerClient;
     private final TableClient tableClient;
+    private final RabbitTemplate rabbitTemplate;
 
     @Override
     public ReservationResponse createReservation(ReservationRequest request) {
         log.info("Creando reserva para cliente: {}, mesa: {}", request.getCustomerId(), request.getTableId());
         validateCustomerAndTable(request.getCustomerId(), request.getTableId());
+
+        boolean tableBusy = repository.existsByTableIdAndReservationTimeAndStatusNot(
+                request.getTableId(),
+                request.getReservationTime(),
+                Reservation.ReservationStatus.CANCELLED
+        );
+        if (tableBusy) {
+            log.warn("La mesa con ID {} ya tiene una reserva activa para el horario {}", request.getTableId(), request.getReservationTime());
+            throw new BadRequestException("La mesa ya se encuentra reservada para la fecha y hora seleccionada.");
+        }
 
         Reservation reservation = Reservation.builder()
                 .customerId(request.getCustomerId())
@@ -38,6 +52,20 @@ public class ReservationServiceImpl implements ReservationService {
                 .build();
         Reservation saved = repository.save(reservation);
         log.info("Reserva creada exitosamente con id: {}", saved.getId());
+
+        // Publicar evento en RabbitMQ
+        try {
+            Map<String, Object> event = new HashMap<>();
+            event.put("eventType", "RESERVATION_CREATED");
+            event.put("message", "¡Nueva reserva registrada exitosamente!");
+            event.put("details", String.format("Reserva ID: %d, Cliente ID: %d, Mesa ID: %d, Hora: %s, Personas: %d",
+                    saved.getId(), saved.getCustomerId(), saved.getTableId(), saved.getReservationTime(), saved.getNumberOfPeople()));
+            rabbitTemplate.convertAndSend("notification.queue", event);
+            log.info("Evento RESERVATION_CREATED publicado en RabbitMQ");
+        } catch (Exception e) {
+            log.error("Fallo al publicar evento RESERVATION_CREATED en RabbitMQ", e);
+        }
+
         return mapToResponse(saved);
     }
 
@@ -72,6 +100,19 @@ public class ReservationServiceImpl implements ReservationService {
                 });
 
         validateCustomerAndTable(request.getCustomerId(), request.getTableId());
+
+        if (request.getStatus() != Reservation.ReservationStatus.CANCELLED) {
+            boolean tableBusy = repository.existsByTableIdAndReservationTimeAndStatusNotAndIdNot(
+                    request.getTableId(),
+                    request.getReservationTime(),
+                    Reservation.ReservationStatus.CANCELLED,
+                    id
+            );
+            if (tableBusy) {
+                log.warn("La mesa con ID {} ya tiene una reserva activa para el horario {}", request.getTableId(), request.getReservationTime());
+                throw new BadRequestException("La mesa ya se encuentra reservada para la fecha y hora seleccionada.");
+            }
+        }
 
         reservation.setCustomerId(request.getCustomerId());
         reservation.setTableId(request.getTableId());

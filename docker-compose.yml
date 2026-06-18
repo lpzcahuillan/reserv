@@ -91,10 +91,13 @@ services:
       context: .
       dockerfile: service-registry/Dockerfile
     container_name: service-registry
+    restart: always
     ports:
       - "8761:8761"
     networks:
       - restaurant-network
+    environment:
+      - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
       interval: 30s
@@ -106,6 +109,7 @@ services:
       context: .
       dockerfile: config-server/Dockerfile
     container_name: config-server
+    restart: always
     ports:
       - "8888:8888"
     depends_on:
@@ -113,6 +117,8 @@ services:
         condition: service_healthy
     networks:
       - restaurant-network
+    environment:
+      - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
       interval: 30s
@@ -124,6 +130,7 @@ services:
       context: .
       dockerfile: api-gateway/Dockerfile
     container_name: api-gateway
+    restart: always
     ports:
       - "8080:8080"
     depends_on:
@@ -131,6 +138,8 @@ services:
         condition: service_healthy
     networks:
       - restaurant-network
+    environment:
+      - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
 
   # Microservices
   ms-customer:
@@ -138,6 +147,7 @@ services:
       context: .
       dockerfile: ms-customer/Dockerfile
     container_name: ms-customer
+    restart: always
     ports:
       - "8081:8081"
     depends_on:
@@ -147,12 +157,15 @@ services:
         condition: service_started
     networks:
       - restaurant-network
+    environment:
+      - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
 
   ms-table:
     build:
       context: .
       dockerfile: ms-table/Dockerfile
     container_name: ms-table
+    restart: always
     ports:
       - "8082:8082"
     depends_on:
@@ -162,12 +175,15 @@ services:
         condition: service_started
     networks:
       - restaurant-network
+    environment:
+      - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
 
   ms-reservation:
     build:
       context: .
       dockerfile: ms-reservation/Dockerfile
     container_name: ms-reservation
+    restart: always
     ports:
       - "8083:8083"
     depends_on:
@@ -177,12 +193,15 @@ services:
         condition: service_started
     networks:
       - restaurant-network
+    environment:
+      - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
 
   ms-queue:
     build:
       context: .
       dockerfile: ms-queue/Dockerfile
     container_name: ms-queue
+    restart: always
     ports:
       - "8084:8084"
     depends_on:
@@ -192,12 +211,15 @@ services:
         condition: service_started
     networks:
       - restaurant-network
+    environment:
+      - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
 
   ms-menu:
     build:
       context: .
       dockerfile: ms-menu/Dockerfile
     container_name: ms-menu
+    restart: always
     ports:
       - "8085:8085"
     depends_on:
@@ -207,12 +229,15 @@ services:
         condition: service_started
     networks:
       - restaurant-network
+    environment:
+      - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
 
   ms-order:
     build:
       context: .
       dockerfile: ms-order/Dockerfile
     container_name: ms-order
+    restart: always
     ports:
       - "8086:8086"
     depends_on:
@@ -222,6 +247,100 @@ services:
         condition: service_started
     networks:
       - restaurant-network
+    environment:
+      - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
+
+  postgres-auth:
+    image: postgres:15-alpine
+    container_name: postgres-auth
+    environment:
+      POSTGRES_DB: db_auth
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5438:5432"
+    networks:
+      - restaurant-network
+    volumes:
+      - auth-db:/var/lib/postgresql/data
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - restaurant-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  zipkin:
+    image: openzipkin/zipkin:3
+    container_name: zipkin
+    ports:
+      - "9411:9411"
+    networks:
+      - restaurant-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - restaurant-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - restaurant-network
+
+  ms-auth:
+    build:
+      context: .
+      dockerfile: ms-auth/Dockerfile
+    container_name: ms-auth
+    restart: always
+    ports:
+      - "8087:8087"
+    depends_on:
+      config-server:
+        condition: service_healthy
+      postgres-auth:
+        condition: service_started
+    networks:
+      - restaurant-network
+    environment:
+      - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
+
+  ms-notification:
+    build:
+      context: .
+      dockerfile: ms-notification/Dockerfile
+    container_name: ms-notification
+    restart: always
+    ports:
+      - "8088:8088"
+    depends_on:
+      config-server:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - restaurant-network
+    environment:
+      - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
 
 networks:
   restaurant-network:
@@ -234,3 +353,4 @@ volumes:
   queue-db:
   menu-db:
   order-db:
+  auth-db:

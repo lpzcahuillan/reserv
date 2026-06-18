@@ -10,12 +10,15 @@ import com.lpzcahuillan.order.exception.ResourceNotFoundException;
 import com.lpzcahuillan.order.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -25,6 +28,7 @@ public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository repository;
     private final MenuClient menuClient;
+    private final RabbitTemplate rabbitTemplate;
 
     @Override
     public OrderResponse createOrder(OrderRequest request) {
@@ -58,6 +62,20 @@ public class OrderServiceImpl implements OrderService {
 
         Order saved = repository.save(order);
         log.info("Orden creada exitosamente con id: {}, mesa: {}, total: {}", saved.getId(), saved.getTableId(), saved.getTotalAmount());
+
+        // Publicar evento en RabbitMQ
+        try {
+            Map<String, Object> event = new HashMap<>();
+            event.put("eventType", "ORDER_CREATED");
+            event.put("message", "¡Nueva comanda/orden registrada!");
+            event.put("details", String.format("Orden ID: %d, Mesa ID: %d, Total: %s",
+                    saved.getId(), saved.getTableId(), saved.getTotalAmount()));
+            rabbitTemplate.convertAndSend("notification.queue", event);
+            log.info("Evento ORDER_CREATED publicado en RabbitMQ");
+        } catch (Exception e) {
+            log.error("Fallo al publicar evento ORDER_CREATED en RabbitMQ", e);
+        }
+
         return mapToResponse(saved);
     }
 
