@@ -1,4 +1,4 @@
-FROM maven:3.9.8-eclipse-temurin-17-alpine AS build
+FROM maven:3.9.8-eclipse-temurin-17 AS build
 WORKDIR /workspace
 COPY . .
 RUN mvn -f pom.xml -pl ms-auth -am -DskipTests package

@@ -281,6 +281,100 @@ docker-compose logs --tail=50 ms-reservation
 
 ---
 
+### 5. Pruebas Unitarias con JUnit y Mockito
+
+El proyecto implementa pruebas unitarias robustas en la capa de servicios para asegurar el correcto funcionamiento de las reglas de negocio, utilizando **JUnit 5 (Jupiter)** y **Mockito** para el mockeo de dependencias y repositorios.
+
+#### Cobertura en Microservicios:
+- **`ms-customer`**: Pruebas sobre la gestión de clientes en `CustomerServiceImplTest`.
+- **`ms-reservation`**: Pruebas sobre la creación y validación de reservas en `ReservationServiceImplTest`.
+- **`ms-table`**: Pruebas sobre la disponibilidad y capacidad de mesas en `TableServiceImplTest`.
+
+#### Ejemplo de Prueba Unitaria (`CustomerServiceImplTest`):
+```java
+@ExtendWith(MockitoExtension.class)
+public class CustomerServiceImplTest {
+
+    @Mock
+    private CustomerRepository repository;
+
+    @InjectMocks
+    private CustomerServiceImpl service;
+
+    @Test
+    void createCustomer_Success() {
+        CustomerRequest request = CustomerRequest.builder()
+                .firstName("John")
+                .lastName("Doe")
+                .email("john.doe@example.com")
+                .phone("+123456789")
+                .build();
+
+        Customer savedCustomer = Customer.builder()
+                .id(1L)
+                .firstName("John")
+                .lastName("Doe")
+                .email("john.doe@example.com")
+                .phone("+123456789")
+                .build();
+
+        when(repository.existsByEmail("john.doe@example.com")).thenReturn(false);
+        when(repository.save(any(Customer.class))).thenReturn(savedCustomer);
+
+        CustomerResponse response = service.createCustomer(request);
+
+        assertNotNull(response);
+        assertEquals(1L, response.getId());
+        verify(repository).save(any(Customer.class));
+    }
+}
+```
+
+---
+
+### 6. Documentación de API con Swagger / OpenAPI
+
+Se ha integrado **Swagger / OpenAPI 3** mediante la librería `springdoc-openapi` en todos los microservicios.
+
+#### Características Implementadas:
+- **Agregación en API Gateway**: La interfaz de Swagger del `api-gateway` está configurada para consolidar y exponer de manera unificada la documentación de todos los microservicios aguas abajo.
+- **Acceso Unificado**: Es posible visualizar y probar interactivamente todos los endpoints desde una sola interfaz centralizada:
+  - Swagger UI: `http://localhost:8080/webjars/swagger-ui/index.html` (o `http://localhost:8080/swagger-ui.html`).
+- **Definición de Documentación en Configuración**:
+  En `api-gateway.yml` (Config Server):
+  ```yaml
+  springdoc:
+    swagger-ui:
+      urls:
+        - name: Customer Service
+          url: /api/customers/v3/api-docs
+        - name: Table Service
+          url: /api/tables/v3/api-docs
+        - name: Reservation Service
+          url: /api/reservations/v3/api-docs
+        ...
+  ```
+
+---
+
+### 7. API Gateway y Servidor de Descubrimiento (Eureka)
+
+El ecosistema de microservicios está soportado por un patrón de puerta de enlace único y registro de servicios centralizado de Spring Cloud:
+
+- **Eureka Server (`service-registry`)**: Actúa como directorio central de servicios donde cada microservicio se registra de forma dinámica al levantarse, permitiendo balanceo de carga automático y comunicación elástica sin acoplar IPs de contenedores.
+- **API Gateway (`api-gateway`)**: Spring Cloud Gateway actúa como punto de entrada público único. Enruta dinámicamente las solicitudes hacia las instancias correctas mediante nombres de aplicación registrados en Eureka (`lb://ms-*`). También centraliza la seguridad y los CORS.
+
+---
+
+### 8. Contenedores y Orquestación Completa con Docker
+
+Toda la topología de la aplicación (incluyendo microservicios de negocio, bases de datos independientes, servidores de infraestructura y brokers de mensajería) se levanta de forma local y automatizada en **Docker Desktop** con un solo comando.
+
+- **Dockerfiles Multi-stage**: Cada servicio tiene un `Dockerfile` optimizado en dos fases: compilación (`maven-alpine`) y ejecución ligera (`eclipse-temurin-alpine`).
+- **Docker Compose**: El archivo `docker-compose.yml` orquesta la red virtual `restaurant-network`, las dependencias de encendido (`depends_on` con `service_healthy`), las variables de entorno de conectividad y los volúmenes de datos persistentes.
+
+---
+
 ## Requisitos
 
 - Java 17+ (Java 21 recomendado para mejor compatibilidad)
@@ -434,8 +528,12 @@ docker-compose down
 |-----------|--------|-----------|----------|
 | **JPA/Hibernate** | ✅ Completo | 100% | 8 entidades, 7 repositorios con queries custom |
 | **Bean Validation** | ✅ Completo | 100% | Anotaciones en todos los DTOs y entidades |
-| **Feign/OpenFeign** | ✅ Completo | 100% | 3 clientes configurados, validaciones en cadena |
+| **Feign/OpenFeign** | ✅ Completo | 100% | 3 clientes configurados, validaciones en cadena y fallback implementados |
 | **SLF4J Logging** | ✅ Completo | 100% | 6 servicios + 6 handlers = 50+ logs contextuales |
+| **JUnit & Mockito** | ✅ Completo | 100% (en 3 MS) | Implementado con JUnit 5 y Mockito en `ms-customer`, `ms-reservation` y `ms-table` |
+| **Swagger** | ✅ Completo | 100% | Configurado en todos los servicios y unificado en `api-gateway` |
+| **Docker** | ✅ Completo | 100% | `docker-compose.yml` completo y `Dockerfile` multi-stage por microservicio |
+| **API Gateway y Eureka** | ✅ Completo | 100% | Enrutamiento en `api-gateway` y registro dinámico en `service-registry` |
 
 ### Componentes del Proyecto
 

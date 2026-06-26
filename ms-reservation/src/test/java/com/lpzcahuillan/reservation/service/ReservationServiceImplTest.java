@@ -6,6 +6,7 @@ import com.lpzcahuillan.reservation.dto.ReservationRequest;
 import com.lpzcahuillan.reservation.dto.ReservationResponse;
 import com.lpzcahuillan.reservation.entity.Reservation;
 import com.lpzcahuillan.reservation.exception.BadRequestException;
+import com.lpzcahuillan.reservation.exception.ResourceNotFoundException;
 import com.lpzcahuillan.reservation.repository.ReservationRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -219,5 +220,96 @@ public class ReservationServiceImplTest {
         assertEquals("La mesa ya se encuentra reservada para la fecha y hora seleccionada.", exception.getMessage());
 
         verify(repository, never()).save(any(Reservation.class));
+    }
+
+    @Test
+    void updateReservation_NotFound() {
+        // Given
+        Long reservationId = 99L;
+        ReservationRequest request = ReservationRequest.builder()
+                .customerId(1L)
+                .tableId(2L)
+                .build();
+
+        when(repository.findById(reservationId)).thenReturn(Optional.empty());
+
+        // When & Then
+        ResourceNotFoundException exception = assertThrows(ResourceNotFoundException.class, () -> service.updateReservation(reservationId, request));
+        assertEquals("Reservation not found", exception.getMessage());
+    }
+
+    @Test
+    void getReservationById_Success() {
+        // Given
+        Long id = 1L;
+        Reservation reservation = Reservation.builder()
+                .id(id)
+                .customerId(2L)
+                .tableId(3L)
+                .status(Reservation.ReservationStatus.CONFIRMED)
+                .build();
+
+        when(repository.findById(id)).thenReturn(Optional.of(reservation));
+
+        // When
+        ReservationResponse response = service.getReservationById(id);
+
+        // Then
+        assertNotNull(response);
+        assertEquals(id, response.getId());
+        assertEquals(2L, response.getCustomerId());
+        assertEquals(3L, response.getTableId());
+    }
+
+    @Test
+    void getReservationById_NotFound() {
+        // Given
+        Long id = 99L;
+        when(repository.findById(id)).thenReturn(Optional.empty());
+
+        // When & Then
+        ResourceNotFoundException exception = assertThrows(ResourceNotFoundException.class, () -> service.getReservationById(id));
+        assertEquals("Reservation not found", exception.getMessage());
+    }
+
+    @Test
+    void getAllReservations_Success() {
+        // Given
+        Reservation reservation1 = Reservation.builder().id(1L).customerId(2L).tableId(3L).build();
+        Reservation reservation2 = Reservation.builder().id(2L).customerId(4L).tableId(5L).build();
+        when(repository.findAll()).thenReturn(java.util.List.of(reservation1, reservation2));
+
+        // When
+        java.util.List<ReservationResponse> results = service.getAllReservations();
+
+        // Then
+        assertNotNull(results);
+        assertEquals(2, results.size());
+    }
+
+    @Test
+    void deleteReservation_Success() {
+        // Given
+        Long id = 1L;
+        when(repository.existsById(id)).thenReturn(true);
+        doNothing().when(repository).deleteById(id);
+
+        // When
+        assertDoesNotThrow(() -> service.deleteReservation(id));
+
+        // Then
+        verify(repository).deleteById(id);
+    }
+
+    @Test
+    void deleteReservation_NotFound() {
+        // Given
+        Long id = 99L;
+        when(repository.existsById(id)).thenReturn(false);
+
+        // When & Then
+        ResourceNotFoundException exception = assertThrows(ResourceNotFoundException.class, () -> service.deleteReservation(id));
+        assertEquals("Reservation not found", exception.getMessage());
+        verify(repository, never()).deleteById(id);
     }
 }

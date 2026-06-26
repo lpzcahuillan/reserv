@@ -26,7 +26,7 @@ spring:
             loggerLevel: basic
 
 jwt:
-  secret: 3c9e45c4a719468532f18378d3840e6c6d042cf768d6d67b2d56193e433f48a1
+  secret: ${JWT_SECRET:3c9e45c4a719468532f18378d3840e6c6d042cf768d6d67b2d56193e433f48a1}
   expiration: 86400000
 
 management:
