@@ -49,7 +49,7 @@ jobs:
           fetch-depth: 0
 
       - name: Analyze with SonarCloud
-
+        if: ${{ vars.SONAR_RUN_CI_ANALYSIS == 'true' }}
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}   # Generate a token on Sonarcloud.io, add it to the secrets of this repo with the name SONAR_TOKEN (Settings > Secrets > Actions > add new repository secret)
@@ -68,3 +68,7 @@ jobs:
             #-Dsonar.verbose= # optional, default is false
           # When you need the analysis to take place in a directory other than the one from which it was launched, default is .
           projectBaseDir: .
+
+      - name: SonarCloud scan disabled
+        if: ${{ vars.SONAR_RUN_CI_ANALYSIS != 'true' }}
+        run: echo "Skipping SonarCloud CI scan. Set repository variable SONAR_RUN_CI_ANALYSIS=true after disabling SonarCloud Automatic Analysis."
