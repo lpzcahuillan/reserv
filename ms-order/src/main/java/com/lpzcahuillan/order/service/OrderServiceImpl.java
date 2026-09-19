@@ -6,6 +6,7 @@ import com.lpzcahuillan.order.dto.OrderRequest;
 import com.lpzcahuillan.order.dto.OrderResponse;
 import com.lpzcahuillan.order.entity.Order;
 import com.lpzcahuillan.order.entity.OrderItem;
+import com.lpzcahuillan.order.exception.BadRequestException;
 import com.lpzcahuillan.order.exception.ResourceNotFoundException;
 import com.lpzcahuillan.order.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,12 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public OrderResponse createOrder(OrderRequest request) {
+        if (request == null || request.getTableId() == null) {
+            throw new BadRequestException("Table ID is required");
+        }
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new BadRequestException("Order must contain at least one item");
+        }
         log.info("Creando orden para mesa: {}, cantidad de items: {}", request.getTableId(), request.getItems().size());
         Order order = Order.builder()
                 .tableId(request.getTableId())

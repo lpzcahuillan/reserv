@@ -20,6 +20,16 @@ spring:
     openfeign:
       circuitbreaker:
         enabled: true
+      client:
+        config:
+          default:
+            connectTimeout: 5000
+            readTimeout: 5000
+            loggerLevel: basic
+          ms-menu:
+            connectTimeout: 3000
+            readTimeout: 3000
+            loggerLevel: basic
   rabbitmq:
     host: rabbitmq
     port: 5672
@@ -29,23 +39,11 @@ spring:
 eureka:
   client:
     service-url:
-      defaultZone: http://service-registry:8761/eureka/
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
 
 springdoc:
   api-docs:
     path: /api/orders/v3/api-docs
-
-feign:
-  client:
-    config:
-      default:
-        connectTimeout: 5000
-        readTimeout: 5000
-        loggerLevel: basic
-      ms-menu:
-        connectTimeout: 3000
-        readTimeout: 3000
-        loggerLevel: basic
 
 management:
   endpoints:

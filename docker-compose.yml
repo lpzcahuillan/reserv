@@ -140,6 +140,8 @@ services:
       - restaurant-network
     environment:
       - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
+      - CONFIG_SERVER_URL=http://config-server:8888
+      - EUREKA_SERVER_URL=http://service-registry:8761/eureka/
 
   # Microservices
   ms-customer:
@@ -159,6 +161,8 @@ services:
       - restaurant-network
     environment:
       - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
+      - CONFIG_SERVER_URL=http://config-server:8888
+      - EUREKA_SERVER_URL=http://service-registry:8761/eureka/
 
   ms-table:
     build:
@@ -177,6 +181,8 @@ services:
       - restaurant-network
     environment:
       - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
+      - CONFIG_SERVER_URL=http://config-server:8888
+      - EUREKA_SERVER_URL=http://service-registry:8761/eureka/
 
   ms-reservation:
     build:
@@ -195,6 +201,8 @@ services:
       - restaurant-network
     environment:
       - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
+      - CONFIG_SERVER_URL=http://config-server:8888
+      - EUREKA_SERVER_URL=http://service-registry:8761/eureka/
 
   ms-queue:
     build:
@@ -213,6 +221,8 @@ services:
       - restaurant-network
     environment:
       - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
+      - CONFIG_SERVER_URL=http://config-server:8888
+      - EUREKA_SERVER_URL=http://service-registry:8761/eureka/
 
   ms-menu:
     build:
@@ -231,6 +241,8 @@ services:
       - restaurant-network
     environment:
       - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
+      - CONFIG_SERVER_URL=http://config-server:8888
+      - EUREKA_SERVER_URL=http://service-registry:8761/eureka/
 
   ms-order:
     build:
@@ -249,6 +261,8 @@ services:
       - restaurant-network
     environment:
       - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
+      - CONFIG_SERVER_URL=http://config-server:8888
+      - EUREKA_SERVER_URL=http://service-registry:8761/eureka/
 
   postgres-auth:
     image: postgres:15-alpine
@@ -323,6 +337,8 @@ services:
       - restaurant-network
     environment:
       - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
+      - CONFIG_SERVER_URL=http://config-server:8888
+      - EUREKA_SERVER_URL=http://service-registry:8761/eureka/
 
   ms-notification:
     build:
@@ -341,6 +357,8 @@ services:
       - restaurant-network
     environment:
       - JAVA_TOOL_OPTIONS=-XX:+UseSerialGC
+      - CONFIG_SERVER_URL=http://config-server:8888
+      - EUREKA_SERVER_URL=http://service-registry:8761/eureka/
 
 networks:
   restaurant-network:

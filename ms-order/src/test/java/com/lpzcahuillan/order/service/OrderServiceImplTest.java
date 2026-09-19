@@ -6,6 +6,7 @@ import com.lpzcahuillan.order.dto.OrderRequest;
 import com.lpzcahuillan.order.dto.OrderResponse;
 import com.lpzcahuillan.order.entity.Order;
 import com.lpzcahuillan.order.entity.OrderItem;
+import com.lpzcahuillan.order.exception.BadRequestException;
 import com.lpzcahuillan.order.exception.ResourceNotFoundException;
 import com.lpzcahuillan.order.repository.OrderRepository;
 import org.junit.jupiter.api.Test;
@@ -108,6 +109,28 @@ public class OrderServiceImplTest {
 
         // When & Then
         assertThrows(RuntimeException.class, () -> service.createOrder(request));
+        verify(repository, never()).save(any(Order.class));
+    }
+
+    @Test
+    void createOrder_NullTableId() {
+        OrderRequest request = OrderRequest.builder()
+                .tableId(null)
+                .items(List.of(new OrderRequest.OrderItemRequest(1L, 1)))
+                .build();
+
+        assertThrows(BadRequestException.class, () -> service.createOrder(request));
+        verify(repository, never()).save(any(Order.class));
+    }
+
+    @Test
+    void createOrder_EmptyItems() {
+        OrderRequest request = OrderRequest.builder()
+                .tableId(1L)
+                .items(Collections.emptyList())
+                .build();
+
+        assertThrows(BadRequestException.class, () -> service.createOrder(request));
         verify(repository, never()).save(any(Order.class));
     }
 
